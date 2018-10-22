@@ -1,0 +1,278 @@
+---
+title: "Best Buy"
+author: "Sunanda Daftari"
+date: "October 27, 2017"
+output: word_document
+---
+
+
+## Set the directory
+```{r}
+setwd("D:/MS/Santa Clara University/OMIS/Working Directory")
+```
+
+## Loading data
+```{r}
+mydata = read.csv("BestBuy.csv")
+```
+
+## Summary statistics
+```{r}
+print(summary(mydata))
+head(mydata) # view the first few rows of the data
+sapply(mydata,sd) # gives standard deviation
+hist(mydata$Warranty)
+hist(mydata$PriceCategory)# considering the raw variable
+hist(log(mydata$PriceCategory))
+boxplot(mydata$Warranty, mydata$PriceCategory)# As the price increases, warranty sales increases.
+```
+##Test for Multicollinearity
+```{r}
+library(VIF)
+library(usdm)
+df<-mydata[,-9]
+cor(df)
+vif(df)#high correlation between product generation and price category. Hence,removing product generation.
+df<-df[,-10]
+cor(df)
+vif(df)#high correlation between married variable and family size variable. hence removing familysize
+df<-df[,-9]
+cor(df)
+vif(df)
+```
+## Logit
+```{r}
+sum(mydata$Warranty==0)
+sum(mydata$Warranty==1) # We have 1990 observations with warranty=1 and 1216 observations with Warranty=0. Considering that we will estimate 7 parameters, we satisfy the minimum 10:1 ratio requirement
+#min(1216/7,1990/7)=173.7143>10
+library(aod)
+library(ggplot2)
+library(Rcpp)
+#Initial Model
+logit1<- glm(Warranty~PriceCategory+hhincome+appliances+age, data=mydata, family="binomial",x=TRUE) # This is the command to run a logit regression 
+summary(logit1) # Everything apart from hhincome is insignificant.
+
+pred = predict(logit1, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6207, meaning the model correctly determines the membership (being 0 vs 1) for 62% of all observations
+
+with(logit1, null.deviance - deviance)
+with(logit1, df.null - df.residual)
+with(logit1, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+
+#Model with married variable
+logit2<- glm(Warranty~PriceCategory+hhincome+appliances+age+married, data=mydata,family="binomial",x=TRUE)
+summary(logit2)#coefficient of income and married is significant 
+
+library(lmtest)
+lrtest(logit1, logit2) # The p-value is significant inidcates that the married variable 
+#improves the model fit, therefore we choose the model with married variable
+pred = predict(logit2, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6503, meaning the model correctly determines the membership (being 0 vs 1) for 65% of all observations
+
+with(logit2, null.deviance - deviance)
+with(logit2, df.null - df.residual)
+with(logit2, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+
+#Model with Mybestbuy variable
+logit3<- glm(Warranty~PriceCategory+hhincome+appliances+age+married+MyBestBuy, data=mydata,family="binomial",x=TRUE)
+summary(logit3)#coef. of married,age, income, Mybestbuy is significant
+
+
+lrtest(logit2, logit3) # The p-value is significant inidcates that the MyBestBuy variable 
+#improves the model fit, therefore we choose the model with MyBestBuy variable
+
+pred = predict(logit3, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6506, meaning the model correctly determines the membership (being 0 vs 1) for 65% of all observations
+
+with(logit3, null.deviance - deviance)
+with(logit3, df.null - df.residual)
+with(logit3, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+
+#Model with newcustomer
+logit4<- glm(Warranty~PriceCategory+hhincome+appliances+age+married+MyBestBuy+newcustomer, data=mydata,family="binomial",x=TRUE)
+summary(logit4)#coef. of married,age, income, Mybestbuy is significant and coeff. of newcustomer is insignificant.
+
+lrtest(logit3, logit4) # The p-value is insignificant inidcates that the newcustomer variable 
+#does not improvethe model fit, therefore we choose the model3
+
+#Model with weekend
+logit5<- glm(Warranty~PriceCategory+hhincome+appliances+age+married+MyBestBuy+weekend, data=mydata,family="binomial",x=TRUE)
+summary(logit5)#coef. of married,age, income, Mybestbuy is significant and coeff. of newcustomer is insignificant.
+
+lrtest(logit3, logit5) # The p-value is insignificant inidcates that the weekend variable 
+#does not improvethe model fit, therefore we choose the model3
+
+#Model with hisp variable
+logit6<- glm(Warranty~PriceCategory+hhincome+appliances+age+married+MyBestBuy+hisp, data=mydata,family="binomial",x=TRUE)
+summary(logit6)#coef. of married,hisp,income,Mybestbuy is significant. Age becomes insignificant
+
+lrtest(logit3, logit6) # The p-value is significant inidcates that the hisp variable 
+#improves the model fit, therefore we choose the logit6
+pred = predict(logit6, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6674, meaning the model correctly determines the membership (being 0 vs 1) for 66% of all observations
+
+with(logit6, null.deviance - deviance)
+with(logit6, df.null - df.residual)
+with(logit6, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+
+#considering the interaction between pricecategory and appliances
+logit7<- glm(Warranty~PriceCategory*appliances+hhincome+age+married+MyBestBuy+hisp, data=mydata,family="binomial",x=TRUE)
+summary(logit7)
+
+
+lrtest(logit6, logit7)# P-value is significant. Model with interaction is better.
+anova(logit6, logit7, test="Chisq")
+
+pred = predict(logit7, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6812, meaning the model correctly determines the membership (being 0 vs 1) for 68% of all observations
+
+#Model with familysize variable and not married variable
+logit9<- glm(Warranty~PriceCategory*appliances+hhincome+age+familysize+MyBestBuy+hisp, data=mydata,family="binomial",x=TRUE)
+summary(logit9)#coef. of married,hisp,income,Mybestbuy and interaction term is significant. 
+
+AIC(logit7,logit9)# Model with Married variable is better
+BIC(logit7,logit9)
+
+#considering the interaction between hhincome and appliances
+logit8<- glm(Warranty~PriceCategory+hhincome*appliances+age+married+MyBestBuy+hisp, data=mydata,family="binomial",x=TRUE)
+summary(logit8)#coef. of married,hisp,income,Mybestbuy is significant. Age becomes insignificant
+
+#lrtest(logit7, logit8)# P-value is insignificant. Model with interaction between pricecategory and appliances is better.
+#anova(logit7, logit8, test="Chisq")
+AIC(logit7,logit8)# Low AIc score for logit7. .so, Logit7 is better.
+
+#considering the interaction between hhincome-appliances and price category-appliances
+logit10<- glm(Warranty~PriceCategory*appliances+hhincome*appliances+age+married+MyBestBuy+hisp, data=mydata,family="binomial",x=TRUE)
+summary(logit10)#coef. of married,hisp,income,Mybestbuy is significant. Age becomes insignificant
+lrtest(logit7, logit10)# P-value is insignificant. Model with interaction between pricecategory and appliances is better.
+anova(logit7, logit10, test="Chisq")
+
+library(effects)
+library(ggplot2)
+plot(effect(term="PriceCategory:appliances",mod=logit7,xlevels=2),multiline=TRUE)
+pred = predict(logit7, type="response",data=mydata)
+insamplepred<-cbind(mydata,pred)
+insamplepredsubset<-insamplepred[c("Warranty","PriceCategory","appliances","hhincome","age","married","MyBestBuy","hisp","pred")]
+insamplepredsubset$appliances<-factor(insamplepredsubset$appliances)
+ggplot(insamplepredsubset)+aes(x=PriceCategory,y=pred,color=appliances)+geom_smooth(method="glm")
+
+
+exp(coef(logit7)) # Let's obtain odds ratios. Now we can say that for a one unit increase in hhincome, the odds of purchasing GeekSquadProtectionPlan(GSPP) (versus not purchasing) increases by a factor of 1.00. 
+
+with(logit7, null.deviance - deviance)
+with(logit7, df.null - df.residual)
+with(logit7, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) # The chi-square of 368.526 with 8 degrees of freedom and an associated p-value of less than 0.001 tells us that our model as a whole fits significantly better than an empty model.
+```
+#Test for Heteroskedasticity
+```{r}
+gqtest(logit7)#p-value is insignificant.GQ test result says that there is no heteroskedasticity
+bptest(logit7)# p-value is significant.This implies that there is heteroskedasticity.So, need to use robust standard errors.
+library(sandwich)
+library(foreign)
+coeftest(logit7, vcov = vcovHC(logit7, "HC1"))
+```
+#logit regression using mfx package(Predicted Margins)
+```{r}
+library(mfx)
+
+logitmfx(formula=Warranty~PriceCategory*appliances+hhincome+age+married+MyBestBuy+hisp, data=mydata) # We can generate the marginal effects with this command. The one unit increase in income increases the probability of buying warranty by 0.000791, holding other variables at their means
+
+logitmfx(formula=Warranty~PriceCategory*appliances+hhincome+age+married+MyBestBuy+hisp, data=mydata, robust=TRUE) # We can obtain the marginal effects from a logit that uses robust standard errors. Note that marginal effects do not change, however, std. errors, and therefore, p-values change.
+```
+# Confusion Matrix
+```{r}
+pred = predict(logit7, type="response",data=mydata) # Let's generate predicted probabilities
+purchase_prediction <- ifelse(pred >= 0.5,1,0) # If the predicted probability is greater than 0.5, then the predicted classification will be a purchase ofGSPP(Warranty==1), otherwise it will be Warranty=0
+misClasificError <- mean(purchase_prediction != mydata$Warranty) # count number of wrong classifications
+print(paste('Accuracy',1-misClasificError)) # calculates the correct classification rate. Accuracy is 0.6840, meaning the model correctly determines the membership (being 0 vs 1) for 68% of all observations
+table(mydata$Warranty, pred>=0.5) # This generates the confusion matrix
+```
+## OLS model
+```{r}
+ols<-lm(Warranty~PriceCategory*appliances+hhincome+age+married+MyBestBuy+hisp,data=mydata)
+summary(ols)
+logitmfx(formula=Warranty~PriceCategory*appliances+hhincome+age+married+MyBestBuy+hisp, data=mydata)
+
+```
+
+## Endogeniety 
+```{r}
+library(AER)
+library(foreign)
+
+modeliv1<- ivreg(Warranty~PriceCategory*appliances+MyBestBuy+hhincome+age+married+hisp|newcustomer+PriceCategory*appliances+hhincome+age+married+hisp, data=mydata)
+summary(modeliv1)
+
+modeliv2<- ivreg(Warranty~PriceCategory*appliances+MyBestBuy+hhincome+age+married+hisp|weekend+PriceCategory*appliances+hhincome+age+married+hisp, data=mydata)
+summary(modeliv2)
+
+
+modeliv3<- ivreg(Warranty~MyBestBuy+PriceCategory*appliances+hhincome+age+married+hisp|weekend+newcustomer+PriceCategory*appliances+hhincome+age+married+hisp, data=mydata)
+summary(modeliv3)
+
+#Endogeneity test
+summary(modeliv1,diagnostics = TRUE)
+summary(modeliv2,diagnostics = TRUE)
+summary(modeliv3,diagnostics = TRUE)
+
+df<-data.frame(mydata$Warranty,mydata$MyBestBuy,mydata$newcustomer,mydata$weekend,mydata$productgeneration)
+cor(df) 
+
+```
+
+# Out-of-sample predictions
+```{r}
+#plot(allEffects(logit7))
+#e.out <- allEffects(logit7)
+library(ggplot2)
+#ggplot of predicted probabilities of hispanic
+newdata= with(mydata,data.frame(PriceCategory=mean(PriceCategory),appliances=mean(appliances),hhincome=mean(hhincome),age=mean(age),married=mean(married),MyBestBuy=mean(MyBestBuy),hisp=c(0,1)))
+newdata1<- cbind(newdata,predict(logit7,newdata=newdata,type="response",se=TRUE))
+newdata1<- within(newdata1,{
+  predictedprob<- plogis(fit)
+  LL<-plogis(fit-(1.96*se.fit))
+  UL<-plogis(fit+(1.96*se.fit))
+})
+ggplot(newdata1,aes(x=hisp,y=predictedprob))+geom_ribbon(aes(ymin=LL,ymax=UL),alpha=.2)+geom_line()
+
+#Marginal effect on predicted probability of married people
+newdata2= with(mydata,data.frame(PriceCategory=mean(PriceCategory),appliances=mean(appliances),hhincome=mean(hhincome),age=mean(age),MyBestBuy=mean(MyBestBuy),hisp=mean(hisp),married=c(0,1)))
+newdata3<- cbind(newdata2,predict(logit7,newdata=newdata2,type="response",se=TRUE))
+newdata3<- within(newdata3,{
+  predictedprob<- plogis(fit)
+  LL<-plogis(fit-(1.96*se.fit))
+  UL<-plogis(fit+(1.96*se.fit))
+})
+ggplot(newdata3,aes(x=married,y=predictedprob))+geom_ribbon(aes(ymin=LL,ymax=UL),alpha=.2)+geom_line()
+
+##Marginal effectof hhincome on predicted probability 
+newdata4= with(mydata,data.frame(PriceCategory=mean(PriceCategory),appliances=mean(appliances),age=mean(age),married=mean(married),MyBestBuy=mean(MyBestBuy),hisp=mean(hisp),hhincome=seq(from=0,to=1300,length.out = 200)))
+newdata5<- cbind(newdata4,predict(logit7,newdata=newdata4,type="response",se=TRUE))
+newdata5<- within(newdata5,{
+  predictedprob<- plogis(fit)
+  LL<-plogis(fit-(1.96*se.fit))
+  UL<-plogis(fit+(1.96*se.fit))
+})
+ggplot(newdata5,aes(x=hhincome,y=predictedprob))+geom_ribbon(aes(ymin=LL,ymax=UL),alpha=.2)+geom_line()
+
+###Marginal effect of the interaction term on predicted probability 
+newdata6= with(mydata,data.frame(PriceCategory=rep(seq(from=0, to=17,length.out = 17),2), appliances=rep(c(0,1),17),age=mean(age),married=mean(married),MyBestBuy=mean(MyBestBuy),hisp=mean(hisp),hhincome=mean(hhincome)))
+newdata7<- cbind(newdata6,predict(logit7,newdata=newdata6,type="response",se=TRUE))
+newdata7<- within(newdata7,{
+  predictedprob<- plogis(fit)
+  LL<-plogis(fit-(1.96*se.fit))
+  UL<-plogis(fit+(1.96*se.fit))
+})
+newdata7$appliances<-factor(newdata7$appliances)
+ggplot(newdata7,aes(x=PriceCategory,y=predictedprob))+geom_ribbon(aes(ymin=LL,ymax=UL,fill=appliances),alpha=0.2)+geom_line(aes(colour=appliances),size=1)
+```
